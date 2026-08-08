@@ -410,6 +410,37 @@ jobs:
         with:
           targets: aarch64-apple-ios
 
+      - name: Create iOS linker wrapper (filters out AppKit)
+        run: |
+          cat > /tmp/ios-linker.sh << 'EOF'
+          #!/bin/bash
+          # Wrapper to filter out -framework AppKit for iOS builds
+          args=()
+          skip_next=false
+          for arg in "$@"; do
+              if [[ "$skip_next" == true ]]; then
+                  if [[ "$arg" == "AppKit" ]]; then
+                      # Skip both -framework and AppKit
+                      args=("${args[@]:0:${#args[@]}-1}")
+                      skip_next=false
+                      continue
+                  else
+                      # Previous was -framework but not AppKit, keep both
+                      args+=("$arg")
+                      skip_next=false
+                  fi
+              elif [[ "$arg" == "-framework" ]]; then
+                  skip_next=true
+                  args+=("$arg")
+              else
+                  args+=("$arg")
+              fi
+          done
+          exec xcrun clang "${args[@]}"
+          EOF
+          chmod +x /tmp/ios-linker.sh
+          echo "CARGO_TARGET_AARCH64_APPLE_IOS_LINKER=/tmp/ios-linker.sh" >> $GITHUB_ENV
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -508,21 +539,14 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android NDK
+      - name: Build Android APK
         run: |
           sdkmanager --install "ndk;27.0.12077973" || sdkmanager --install "ndk;26.1.10909125" || true
           NDK_HOME=$(ls -d $ANDROID_HOME/ndk/27.* 2>/dev/null | head -1 || ls -d $ANDROID_HOME/ndk/26.* 2>/dev/null | head -1)
-          echo "NDK_HOME=$NDK_HOME" >> $GITHUB_ENV
-          echo "CARGO_NDK_SYSROOT_PATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot" >> $GITHUB_ENV
-          echo "CC_aarch64-linux-android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang" >> $GITHUB_ENV
-          echo "AR_aarch64-linux-android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar" >> $GITHUB_ENV
-          echo "CFLAGS_aarch64-linux-android=--target=aarch64-linux-android35" >> $GITHUB_ENV
-
-      - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Android APK
-        run: |
+          export CARGO_NDK_SYSROOT_PATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+          export CC_aarch64-linux-android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang
+          export AR_aarch64-linux-android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          export CFLAGS_aarch64-linux-android=--target=aarch64-linux-android35
           pnpm tauri android init
           pnpm tauri android build --apk
 
