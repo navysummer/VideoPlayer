@@ -2,3 +2,9 @@
 # (block v0.1.6 via rfd) that cannot be fixed from this project.
 [future-incompat-report]
 frequency = "never"
+
+# iOS: AppKit is macOS-only; linker erroneously tries to link it on iOS
+[target.aarch64-apple-ios]
+rustflags = [
+  "-C", "link-args=-Wl,-framework,-Wl,AppKit",
+]
