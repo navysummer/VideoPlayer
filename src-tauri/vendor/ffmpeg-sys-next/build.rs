@@ -162,7 +162,12 @@ fn fetch() -> io::Result<()> {
     let clone_dest_dir = format!("ffmpeg-{}", version());
     let _ = std::fs::remove_dir_all(output_base_path.join(&clone_dest_dir));
     let tarball = env::var("FFMPEG_TARBALL").unwrap_or_else(|_| {
-        "/Users/navysummer/Desktop/other/VideoPlayer/.ffmpeg-vendor/ffmpeg-7.1.tar.xz".to_string()
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let vendor_root = std::path::Path::new(manifest_dir)
+            .join("../../..")
+            .join(".ffmpeg-vendor")
+            .join(format!("ffmpeg-{}.tar.xz", version()));
+        vendor_root.to_string_lossy().to_string()
     });
     let status = Command::new("tar")
         .current_dir(&output_base_path)

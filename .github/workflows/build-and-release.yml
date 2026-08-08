@@ -103,6 +103,11 @@ jobs:
         run: |
           brew install nasm librsvg 2>/dev/null || true
 
+      - name: Download FFmpeg source
+        run: |
+          mkdir -p .ffmpeg-vendor
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
@@ -168,6 +173,11 @@ jobs:
       - name: Install system deps
         run: |
           brew install nasm librsvg 2>/dev/null || true
+
+      - name: Download FFmpeg source
+        run: |
+          mkdir -p .ffmpeg-vendor
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -238,6 +248,11 @@ jobs:
         with:
           workspaces: src-tauri -> target
           key: ${{ matrix.target }}
+
+      - name: Download FFmpeg source
+        run: |
+          mkdir -p .ffmpeg-vendor
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -317,6 +332,11 @@ jobs:
             rpm \
             nasm
 
+      - name: Download FFmpeg source
+        run: |
+          mkdir -p .ffmpeg-vendor
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
@@ -363,6 +383,11 @@ jobs:
         with:
           workspaces: src-tauri -> target
           key: ios
+
+      - name: Download FFmpeg source
+        run: |
+          mkdir -p .ffmpeg-vendor
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -417,6 +442,11 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
             patchelf libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
             nasm
+
+      - name: Download FFmpeg source
+        run: |
+          mkdir -p .ffmpeg-vendor
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install Java
         uses: actions/setup-java@v4
