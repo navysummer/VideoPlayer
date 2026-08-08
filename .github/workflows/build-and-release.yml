@@ -106,7 +106,14 @@ jobs:
       - name: Download FFmpeg source
         run: |
           mkdir -p .ffmpeg-vendor
-          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+          for i in 1 2 3 4 5; do
+            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
+              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
+              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -177,7 +184,14 @@ jobs:
       - name: Download FFmpeg source
         run: |
           mkdir -p .ffmpeg-vendor
-          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+          for i in 1 2 3 4 5; do
+            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
+              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
+              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -252,7 +266,14 @@ jobs:
       - name: Download FFmpeg source
         run: |
           mkdir -p .ffmpeg-vendor
-          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+          for i in 1 2 3 4 5; do
+            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
+              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
+              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -335,7 +356,14 @@ jobs:
       - name: Download FFmpeg source
         run: |
           mkdir -p .ffmpeg-vendor
-          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+          for i in 1 2 3 4 5; do
+            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
+              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
+              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -387,7 +415,14 @@ jobs:
       - name: Download FFmpeg source
         run: |
           mkdir -p .ffmpeg-vendor
-          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+          for i in 1 2 3 4 5; do
+            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
+              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
+              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -446,7 +481,14 @@ jobs:
       - name: Download FFmpeg source
         run: |
           mkdir -p .ffmpeg-vendor
-          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz
+          for i in 1 2 3 4 5; do
+            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
+              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
+              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Install Java
         uses: actions/setup-java@v4
