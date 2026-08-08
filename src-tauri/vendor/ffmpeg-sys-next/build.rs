@@ -493,6 +493,7 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
     // Linux builds link against a system OpenSSL (installed in CI as a system package)
     if matches!(target_os.as_str(), "linux") {
         configure.arg("--enable-openssl");
+        configure.arg("--enable-version3");
     }
 
     // Apple VideoToolbox (iOS and macOS)
