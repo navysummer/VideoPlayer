@@ -104,6 +104,7 @@ jobs:
           brew install nasm librsvg 2>/dev/null || true
 
       - name: Download FFmpeg source
+        shell: bash
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do
@@ -182,6 +183,7 @@ jobs:
           brew install nasm librsvg 2>/dev/null || true
 
       - name: Download FFmpeg source
+        shell: bash
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do
@@ -264,6 +266,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Download FFmpeg source
+        shell: bash
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do
@@ -354,6 +357,7 @@ jobs:
             nasm
 
       - name: Download FFmpeg source
+        shell: bash
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do
@@ -413,6 +417,7 @@ jobs:
           key: ios
 
       - name: Download FFmpeg source
+        shell: bash
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do
@@ -430,7 +435,7 @@ jobs:
       - name: Build iOS
         run: |
           pnpm tauri ios init
-          pnpm tauri ios build --no-sign
+          pnpm tauri ios build --no-sign -- --no-default-features --features embedded-ffmpeg
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -464,6 +469,9 @@ jobs:
         with:
           targets: aarch64-linux-android
 
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -479,6 +487,7 @@ jobs:
             nasm
 
       - name: Download FFmpeg source
+        shell: bash
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do

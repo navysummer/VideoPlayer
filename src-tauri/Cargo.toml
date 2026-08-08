@@ -19,7 +19,7 @@ tiny_http = "0.12"
 anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
-rfd = "0.14"
+rfd = { version = "0.14", optional = true }
 ffmpeg = { package = "ffmpeg-next", version = "7" }
 tauri-plugin-opener = "2"
 
@@ -29,9 +29,11 @@ tauri-plugin-opener = "2"
 embedded-ffmpeg = [
     "ffmpeg/build",
     "ffmpeg/build-license-gpl",
-    "ffmpeg/build-lib-x264",
 ]
-default = ["embedded-ffmpeg"]
+default = ["embedded-ffmpeg", "file-dialog"]
+
+# Native file-chooser dialog (rfd). Disabled on iOS where rfd has no backend.
+file-dialog = ["rfd"]
 
 # Use a patched fork of ffmpeg-sys-next that enables a system TLS backend
 # (SecureTransport on macOS/iOS, Schannel on Windows, OpenSSL on Linux) so

@@ -42,23 +42,30 @@ pub struct OpenMediaResult {
 /// Open the native "choose file" dialog and return the picked path, if any.
 #[tauri::command]
 async fn open_file_dialog() -> Result<Option<String>, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        let picked = rfd::FileDialog::new()
-            .set_title("打开视频文件")
-            .add_filter(
-                "所有视频",
-                &[
-                    "mp4", "mkv", "mov", "avi", "flv", "wmv", "webm", "m4v", "mpg", "mpeg",
-                    "ts", "m2ts", "mts", "3gp", "3g2", "ogv", "rm", "rmvb", "rmv", "asf",
-                    "mp4v", "m4a", "aac", "mp3", "flac", "wav", "mka", "ogg", "opus", "amr",
-                ],
-            )
-            .add_filter("所有文件", &["*"])
-            .pick_file();
-        Ok(picked.map(|p| p.to_string_lossy().to_string()))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    #[cfg(feature = "file-dialog")]
+    {
+        tauri::async_runtime::spawn_blocking(|| {
+            let picked = rfd::FileDialog::new()
+                .set_title("打开视频文件")
+                .add_filter(
+                    "所有视频",
+                    &[
+                        "mp4", "mkv", "mov", "avi", "flv", "wmv", "webm", "m4v", "mpg", "mpeg",
+                        "ts", "m2ts", "mts", "3gp", "3g2", "ogv", "rm", "rmvb", "rmv", "asf",
+                        "mp4v", "m4a", "aac", "mp3", "flac", "wav", "mka", "ogg", "opus", "amr",
+                    ],
+                )
+                .add_filter("所有文件", &["*"])
+                .pick_file();
+            Ok(picked.map(|p| p.to_string_lossy().to_string()))
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(feature = "file-dialog"))]
+    {
+        Err("当前平台不支持文件选择对话框".into())
+    }
 }
 
 /// True for remote URLs whose container is directly playable by the webview
