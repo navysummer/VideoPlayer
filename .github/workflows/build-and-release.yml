@@ -410,22 +410,31 @@ jobs:
         with:
           targets: aarch64-apple-ios
 
-      - name: Create iOS linker wrapper (filters out AppKit)
+      - name: Create iOS linker wrapper (filters out macOS-only frameworks)
         run: |
           cat > /tmp/ios-linker.sh << 'EOF'
           #!/bin/bash
-          # Wrapper to filter out -framework AppKit for iOS builds
+          # Wrapper to filter out macOS-only frameworks for iOS builds
           args=()
           skip_next=false
+          # Frameworks not available on iOS
+          skip_frameworks=("AppKit" "OpenCL" "OpenGL" "QTKit" "AudioToolbox" "CoreMedia" "VideoDecodeAcceleration" "VideoToolbox")
           for arg in "$@"; do
               if [[ "$skip_next" == true ]]; then
-                  if [[ "$arg" == "AppKit" ]]; then
-                      # Skip both -framework and AppKit
+                  should_skip=false
+                  for fw in "${skip_frameworks[@]}"; do
+                      if [[ "$arg" == "$fw" ]]; then
+                          should_skip=true
+                          break
+                      fi
+                  done
+                  if [[ "$should_skip" == true ]]; then
+                      # Skip both -framework and the framework name
                       args=("${args[@]:0:${#args[@]}-1}")
                       skip_next=false
                       continue
                   else
-                      # Previous was -framework but not AppKit, keep both
+                      # Previous was -framework but not a skipped framework, keep both
                       args+=("$arg")
                       skip_next=false
                   fi

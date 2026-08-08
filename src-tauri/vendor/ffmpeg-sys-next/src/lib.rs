@@ -8,6 +8,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(unpredictable_function_pointer_comparisons)]
 #![allow(unnecessary_transmutes)]
+#![allow(improper_ctypes)]
 
 extern crate libc;
 
