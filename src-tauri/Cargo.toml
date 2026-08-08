@@ -20,15 +20,8 @@ anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
 rfd = "0.14"
-# Synchronous HTTP client with a pure-Rust TLS stack (rustls). All network I/O
-# happens here in the app (the embedded FFmpeg only touches local files).
-# `tls` enables the rustls backend (webpki-roots); `native-certs` also loads the
-# system CA store so corporate/intercepted certs are accepted.
-ureq = { version = "2", default-features = false, features = ["tls", "native-certs", "gzip"] }
-url = "2"
 ffmpeg = { package = "ffmpeg-next", version = "7" }
 tauri-plugin-opener = "2"
-quick-xml = "0.41.0"
 
 [features]
 # Build FFmpeg from source and statically link it into the app.

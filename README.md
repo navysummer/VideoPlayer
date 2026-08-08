@@ -105,7 +105,7 @@ export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/opt/x264/lib/pkgconfi
     ├── src/transcode.rs    进程内转码
     ├── src/stream.rs       本地流服务（tiny_http）
     ├── capabilities/default.json  权限声明
-    ├── tauri.conf.json     窗口/打包配置（productName：「主播视频播放器」）
+    ├── tauri.conf.json     窗口/打包配置（productName：「流影视频播放器」）
     ├── Cargo.toml          依赖（ffmpeg 别名 = ffmpeg-next，tauri-plugin-opener）
     └── icons/              应用图标（png / icns / ico）
 ```

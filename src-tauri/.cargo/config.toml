@@ -1,0 +1,4 @@
+# Suppress the build-end "future-incompat" report for third-party deps
+# (block v0.1.6 via rfd) that cannot be fixed from this project.
+[future-incompat-report]
+frequency = "never"

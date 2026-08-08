@@ -1,6 +1,5 @@
 #![allow(linker_messages)]
 
-mod download;
 mod probe;
 mod stream;
 mod transcode;
@@ -38,9 +37,6 @@ pub struct AppState {
 pub struct OpenMediaResult {
     pub url: String,
     pub info: MediaInfo,
-    /// true when a remote source is being downloaded in the background; the
-    /// final result is obtained with `open_media_result`.
-    pub loading: bool,
 }
 
 /// Open the native "choose file" dialog and return the picked path, if any.
@@ -65,8 +61,37 @@ async fn open_file_dialog() -> Result<Option<String>, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// True for remote URLs whose container is directly playable by the webview
+/// (HLS on WebKit, plus plain mp4/webm/audio). The browser streams these in
+/// real time — no download, no transcode.
+///
+/// HTTPS sources are handed straight to the webview. HTTP sources are relayed
+/// through our local HTTP server (macOS ATS blocks cleartext media loads in
+/// WKWebView, so we proxy them ourselves).
+fn native_playable_remote(uri: &str) -> bool {
+    if !(uri.starts_with("http://") || uri.starts_with("https://")) {
+        return false;
+    }
+    let path = uri.split(['?', '#']).next().unwrap_or(uri).to_lowercase();
+    for ext in [
+        ".m3u8", ".m3u", ".mp4", ".m4v", ".m4a", ".mov", ".webm", ".aac", ".mp3", ".wav",
+        ".ogg", ".oga", ".opus", ".flac", ".mp2",
+    ] {
+        if path.ends_with(ext) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Quick playlist sniff: does this look like an HLS or DASH manifest URL?
+fn looks_like_manifest(uri: &str) -> bool {
+    let lower = uri.to_lowercase();
+    lower.ends_with(".m3u8") || lower.ends_with(".m3u") || lower.ends_with(".mpd")
+}
+
 /// Probe a media source (local path or URL) and start streaming it.
-/// Returns the local stream URL + media info.
+/// Returns the stream URL + media info.
 #[tauri::command]
 async fn open_media(uri: String, state: State<'_, AppState>) -> Result<OpenMediaResult, String> {
     let uri = uri.trim().to_string();
@@ -77,22 +102,28 @@ async fn open_media(uri: String, state: State<'_, AppState>) -> Result<OpenMedia
         return Err("暂不支持该协议/地址".into());
     }
 
-    // Remote sources are downloaded via ureq+rustls in a background thread;
-    // the FFmpeg SDK never touches the network directly. Return immediately
-    // with `loading = true`; the frontend polls `stream_status` and then
-    // calls `open_media_result` once the download stage has finished.
-    if download::is_remote(&uri) {
-        let url = state
-            .stream
-            .start_remote(&uri)
-            .map_err(|e| e.to_string())?;
-        return Ok(OpenMediaResult {
-            url,
-            info: MediaInfo::default(),
-            loading: true,
-        });
+    // HTTPS sources the webview can play natively (HLS, mp4, webm, audio)
+    // are handed straight to the <video> element — no download, no transcode.
+    if uri.starts_with("https://") && native_playable_remote(&uri) {
+        let mut info = MediaInfo::default();
+        info.uri = uri.clone();
+        info.is_local = false;
+        info.directly_playable = true;
+        info.compatible_reason = "浏览器原生播放".into();
+        if looks_like_manifest(&uri) {
+            info.format_name = Some(if uri.to_lowercase().ends_with(".mpd") {
+                "dash".into()
+            } else {
+                "hls".into()
+            });
+        }
+        return Ok(OpenMediaResult { url: uri, info });
     }
 
+    // HTTP remotely-playable sources (mp4/webm/audio) are relayed through our
+    // local HTTP server — WKWebView stalls when playback catches the buffer on
+    // cleartext http, so we proxy the bytes ourselves.
+    // Non-playable formats go through FFmpeg transcode.
     let info = tauri::async_runtime::spawn_blocking({
         let uri = uri.clone();
         move || probe::probe(&uri)
@@ -106,23 +137,7 @@ async fn open_media(uri: String, state: State<'_, AppState>) -> Result<OpenMedia
     }
 
     let url = state.stream.set_media(&info).map_err(|e| e.to_string())?;
-    Ok(OpenMediaResult {
-        url,
-        info,
-        loading: false,
-    })
-}
-
-/// Return the completed media result for a remote download that has finished
-/// staging. Errors if the download failed or a remote source is still running.
-#[tauri::command]
-async fn open_media_result(state: State<'_, AppState>) -> Result<Option<OpenMediaResult>, String> {
-    let prepared = state.stream.prepared_result();
-    Ok(prepared.map(|(url, info)| OpenMediaResult {
-        url,
-        info,
-        loading: false,
-    }))
+    Ok(OpenMediaResult { url, info })
 }
 
 #[tauri::command]
@@ -173,7 +188,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_file_dialog,
             open_media,
-            open_media_result,
             stream_status,
             stop_playback,
             open_external,

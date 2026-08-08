@@ -45,7 +45,6 @@ const state = reactive({
   streamUrl: null,
   idleTimer: null,
   pollTimer: null,
-  downloadTimer: null,
   scrubbing: false,
 });
 
@@ -124,13 +123,9 @@ async function openMedia(uri) {
 
   try {
     const res = await invoke("open_media", { uri });
-    if (res.loading) {
-      startDownloadPolling();
-    } else {
-      state.media = res.info;
-      state.streamUrl = res.url;
-      loadStream(res.info);
-    }
+    state.media = res.info;
+    state.streamUrl = res.url;
+    loadStream(res.info);
   } catch (err) {
     loadingVisible.value = false;
     emptyVisible.value = true;
@@ -138,80 +133,9 @@ async function openMedia(uri) {
   }
 }
 
-// Remote sources (https/m3u8/mpd/…) are downloaded in a background worker
-// before playback can begin. Poll stream_status until the download stage
-// is done, then fetch the finished result via open_media_result.
-function startDownloadPolling() {
-  stopProgressPolling();
-  stopDownloadPolling();
-  loadingVisible.value = true;
-  loadingText.value = "正在下载…";
-
-  const update = async () => {
-    let st;
-    try {
-      st = await invoke("stream_status");
-    } catch {
-      return;
-    }
-    if (st.error) {
-      handleMediaFailure(st.error);
-      return;
-    }
-    if (st.stage === "downloading") {
-      const total = st.download_total || 0;
-      const done = st.downloaded_bytes || 0;
-      loadingText.value = total > 0
-        ? `正在下载 ${fmtBytes(done)} / ${fmtBytes(total)}…`
-        : `正在下载 ${fmtBytes(done)}…`;
-      if (tprogressBarEl.value) {
-        const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
-        tprogressBarEl.value.style.width = pct + "%";
-      }
-      if (tprogressTextEl.value)
-        tprogressTextEl.value.textContent = `下载中 ${fmtBytes(done)}`;
-      tprogressVisible.value = true;
-      return;
-    }
-    stopDownloadPolling();
-    tprogressVisible.value = false;
-    if (st.error) {
-      handleMediaFailure(st.error);
-      return;
-    }
-    try {
-      const res = await invoke("open_media_result");
-      if (!res) return;
-      state.media = res.info;
-      state.streamUrl = res.url;
-      loadStream(res.info);
-    } catch (err) {
-      handleMediaFailure(String(err));
-    }
-  };
-  update();
-  state.downloadTimer = setInterval(update, 800);
-}
-
-function handleMediaFailure(msg) {
-  stopDownloadPolling();
-  loadingVisible.value = false;
-  tprogressVisible.value = false;
-  emptyVisible.value = true;
-  toast(typeof msg === "string" ? msg : "网络媒体加载失败", true);
-}
-
-function stopDownloadPolling() {
-  if (state.downloadTimer) {
-    clearInterval(state.downloadTimer);
-    state.downloadTimer = null;
-  }
-}
-
 function loadStream(info) {
-  stopDownloadPolling();
   loadingText.value = info.directly_playable
-    ? "正在加载…"
+    ? info.is_local ? "正在加载…" : "正在建立直连…"
     : "FFmpeg 首次转码中，请稍候…";
   metaTitle.value =
     (info.is_local ? fileBase(info.uri) : fileNameFromUri(info.uri)) || "网络媒体";
@@ -219,7 +143,7 @@ function loadStream(info) {
 
   metaCompatVisible.value = true;
   if (info.directly_playable) {
-    metaCompatText.value = "● 原生播放";
+    metaCompatText.value = info.is_local ? "● 原生播放" : "● 实时直连";
     metaCompatCls.value = "ok";
   } else {
     metaCompatText.value = "● FFmpeg 实时转码";
@@ -246,11 +170,12 @@ function startProgressPolling(active) {
   const update = async () => {
     try {
       const st = await invoke("stream_status");
-      if (!st.finished && st.mode === "transcode") {
+      if (!st.finished && (st.mode === "transcode" || st.mode === "relay")) {
         tprogressVisible.value = true;
         const pct = st.progress_pct || 0;
         tprogressBarEl.value.style.width = pct + "%";
-        tprogressTextEl.value.textContent = `正在转码 ${pct}% · ${fmtBytes(st.written_bytes)}`;
+        const label = st.mode === "relay" ? "正在加载" : "正在转码";
+        tprogressTextEl.value.textContent = `${label} ${pct}% · ${fmtBytes(st.written_bytes)}`;
       } else {
         tprogressVisible.value = false;
       }
@@ -284,7 +209,7 @@ function onEnded() {
   setPlaying(false);
 }
 function onWaiting() {
-  if (state.media && !state.media.directly_playable) {
+  if (state.media && !state.media.is_local) {
     loadingVisible.value = true;
     loadingText.value = "缓冲中…";
   }
@@ -488,7 +413,6 @@ onBeforeUnmount(() => {
   document.removeEventListener("mousemove", wakeControls);
   document.removeEventListener("keydown", onKeydown);
   stopProgressPolling();
-  stopDownloadPolling();
   invoke("stop_playback").catch(() => {});
 });
 </script>

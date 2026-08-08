@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "主播视频播放器",
+  "productName": "流影视频播放器",
   "version": "0.0.1",
   "identifier": "com.navysummer.videoplayer",
   "build": {
@@ -39,6 +39,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "infoPlist": "Info.plist"
+    }
   }
 }
