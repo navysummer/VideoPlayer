@@ -158,7 +158,8 @@ function loadStream(info) {
   videoEl.value.src = state.streamUrl;
   videoEl.value.play().catch(() => {});
 
-  startProgressPolling(!info.directly_playable);
+  const needsProgress = state.streamUrl && state.streamUrl.includes("127.0.0.1");
+  startProgressPolling(needsProgress);
 }
 
 function startProgressPolling(active) {
@@ -174,7 +175,7 @@ function startProgressPolling(active) {
         tprogressVisible.value = true;
         const pct = st.progress_pct || 0;
         tprogressBarEl.value.style.width = pct + "%";
-        const label = st.mode === "relay" ? "正在加载" : "正在转码";
+        const label = state.media && state.media.directly_playable ? "正在加载" : "正在转码";
         tprogressTextEl.value.textContent = `${label} ${pct}% · ${fmtBytes(st.written_bytes)}`;
       } else {
         tprogressVisible.value = false;

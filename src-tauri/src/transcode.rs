@@ -465,3 +465,86 @@ fn run_inner(input: &str, output: &Path, stats: &TranscodeStats) -> Result<()> {
     }
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Stream copy: remux input into a seekable fragmented MP4 (no re-encoding).
+// Used for directly-playable remote files that just need remuxing.
+// ---------------------------------------------------------------------------
+
+pub fn copy_run(input: &str, output: &Path, stats: &TranscodeStats) -> Result<()> {
+    let result = copy_run_inner(input, output, stats);
+    if let Err(e) = &result {
+        *stats.error.lock().unwrap() = Some(e.to_string());
+        log::error!("remux 失败: {e}");
+    }
+    stats.finished.store(true, Ordering::Relaxed);
+    result
+}
+
+fn copy_run_inner(input: &str, output: &Path, stats: &TranscodeStats) -> Result<()> {
+    let mut ictx = format::input(input)
+        .map_err(|e| anyhow!("打开输入失败: {e}"))?;
+    let mut octx = format::output(output)
+        .map_err(|e| anyhow!("创建输出失败: {e}"))?;
+    enable_fragmented_mp4(&mut octx);
+
+    let mut stream_map: Vec<Option<usize>> = Vec::new();
+
+    for ist in ictx.streams() {
+        let codec_id = ist.parameters().id();
+        let medium = ist.parameters().medium();
+
+        if medium != media::Type::Video && medium != media::Type::Audio {
+            stream_map.push(None);
+            continue;
+        }
+
+        let codec = ffmpeg::encoder::find(codec_id)
+            .ok_or_else(|| anyhow!("找不到编码器: {codec_id:?}"))?;
+        let mut ost = octx.add_stream(codec)?;
+        ost.set_parameters(ist.parameters());
+        stream_map.push(Some(ost.index()));
+    }
+
+    octx.write_header()
+        .map_err(|e| anyhow!("写入头失败: {e}"))?;
+
+    let mut count = 0u64;
+    for (ist, packet) in ictx.packets() {
+        if stats.cancel.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let ist_idx = ist.index();
+        if let Some(&Some(ost_idx)) = stream_map.get(ist_idx) {
+            let mut packet = packet.clone();
+            packet.set_stream(ost_idx);
+
+            let ist_tb = ist.time_base();
+            let ost_tb = octx
+                .stream(ost_idx)
+                .ok_or_else(|| anyhow!("找不到输出流 {ost_idx}"))?
+                .time_base();
+            packet.rescale_ts(ist_tb, ost_tb);
+
+            packet
+                .write_interleaved(&mut octx)
+                .map_err(|e| anyhow!("写入包失败: {e}"))?;
+        }
+
+        count += 1;
+        if count % 120 == 0 {
+            if let Ok(md) = std::fs::metadata(output) {
+                stats.written_bytes.store(md.len(), Ordering::Relaxed);
+            }
+        }
+    }
+
+    octx.write_trailer()
+        .map_err(|e| anyhow!("写入尾失败: {e}"))?;
+
+    if let Ok(md) = std::fs::metadata(output) {
+        stats.written_bytes.store(md.len(), Ordering::Relaxed);
+    }
+    Ok(())
+}

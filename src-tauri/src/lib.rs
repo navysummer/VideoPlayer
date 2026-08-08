@@ -102,9 +102,9 @@ async fn open_media(uri: String, state: State<'_, AppState>) -> Result<OpenMedia
         return Err("暂不支持该协议/地址".into());
     }
 
-    // HTTPS sources the webview can play natively (HLS, mp4, webm, audio)
-    // are handed straight to the <video> element — no download, no transcode.
-    if uri.starts_with("https://") && native_playable_remote(&uri) {
+    // Remote sources the webview can play natively — hand straight to <video>.
+    // The browser handles HTTP/HTTPS Range requests on its own.
+    if native_playable_remote(&uri) {
         let mut info = MediaInfo::default();
         info.uri = uri.clone();
         info.is_local = false;
@@ -120,10 +120,7 @@ async fn open_media(uri: String, state: State<'_, AppState>) -> Result<OpenMedia
         return Ok(OpenMediaResult { url: uri, info });
     }
 
-    // HTTP remotely-playable sources (mp4/webm/audio) are relayed through our
-    // local HTTP server — WKWebView stalls when playback catches the buffer on
-    // cleartext http, so we proxy the bytes ourselves.
-    // Non-playable formats go through FFmpeg transcode.
+    // Non-playable remote formats go through FFmpeg copy/transcode via local server.
     let info = tauri::async_runtime::spawn_blocking({
         let uri = uri.clone();
         move || probe::probe(&uri)

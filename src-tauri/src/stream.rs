@@ -21,7 +21,6 @@ pub enum Media {
     None,
     Direct { path: String },
     Transcode { input: String },
-    Relay { url: String },
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -108,14 +107,12 @@ impl StreamManager {
                 self.total_estimate.store(md.len(), Ordering::Relaxed);
             }
         } else if info.directly_playable && !info.is_local {
-            // Remote file the browser can play natively — relay raw bytes through
-            // our local HTTP server instead of transcoding (avoids FFmpeg http stalls).
-            log::info!("relay serve: {}", info.uri);
-            *self.media.lock().unwrap() = Media::Relay { url: info.uri.clone() };
+            log::info!("copy serve: {}", info.uri);
+            *self.media.lock().unwrap() = Media::Transcode { input: info.uri.clone() };
 
             let mut tmp = std::env::temp_dir();
             tmp.push(format!(
-                "vplayer_relay_{}_{}",
+                "vplayer_{}_{}.mp4",
                 process::id(),
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -134,18 +131,13 @@ impl StreamManager {
             self.total_estimate.store(est.max(1), Ordering::Relaxed);
 
             let stats = self.stats.clone();
-            let url = info.uri.clone();
-            let total_est = self.total_estimate.clone();
+            let input = info.uri.clone();
             let handle = std::thread::Builder::new()
-                .name("relay-worker".into())
+                .name("copy-worker".into())
                 .spawn(move || {
-                    if let Err(e) = relay_run(&url, &tmp, &stats, &total_est) {
-                        log::error!("relay 失败: {e}");
-                        *stats.error.lock().unwrap() = Some(e.to_string());
-                    }
-                    stats.finished.store(true, Ordering::Relaxed);
+                    let _ = transcode::copy_run(&input, &tmp, &stats);
                 })
-                .map_err(|e| anyhow!("启动 relay 线程失败: {e}"))?;
+                .map_err(|e| anyhow!("启动 remux 线程失败: {e}"))?;
             *self.worker.lock().unwrap() = Some(handle);
         } else {
             log::info!("transcode serve: {}", info.uri);
@@ -194,7 +186,7 @@ impl StreamManager {
         }
         if let Some(p) = self.serve_path.lock().unwrap().take() {
             match *self.media.lock().unwrap() {
-                Media::Transcode { .. } | Media::Relay { .. } => {
+                Media::Transcode { .. } => {
                     let _ = std::fs::remove_file(&p);
                 }
                 _ => {}
@@ -218,7 +210,6 @@ impl StreamManager {
             Media::None => "none",
             Media::Direct { .. } => "direct",
             Media::Transcode { .. } => "transcode",
-            Media::Relay { .. } => "relay",
         }
         .to_string();
 
@@ -264,95 +255,22 @@ impl std::str::FromStr for RangeSpec {
     }
 }
 
-/// Raw HTTP relay: download a remote URL byte-by-byte into a local file.
-/// No FFmpeg involved — just a plain TCP connection.
-fn relay_run(url: &str, output: &std::path::Path, stats: &TranscodeStats, total_estimate: &AtomicU64) -> Result<()> {
-    use std::io::{BufRead, BufReader, Write};
-    use std::net::TcpStream;
-
-    let parsed = url
-        .strip_prefix("http://")
-        .ok_or_else(|| anyhow!("relay 只支持 http"))?;
-    let (host, rest) = parsed.split_once('/').unwrap_or((parsed, ""));
-    let (host_str, port) = if let Some((h, p)) = host.rsplit_once(':') {
-        (h.to_string(), p.parse::<u16>().unwrap_or(80))
-    } else {
-        (host.to_string(), 80u16)
-    };
-    let path = format!("/{rest}");
-    let host_hdr = host_str.clone();
-
-    let addr = format!("{host_str}:{port}");
-    let mut stream = TcpStream::connect(&addr)
-        .map_err(|e| anyhow!("连接远程服务器失败 ({addr}): {e}"))?;
-    stream
-        .set_read_timeout(Some(std::time::Duration::from_secs(30)))
-        .ok();
-
-    let req = format!("GET {path} HTTP/1.1\r\nHost: {host_hdr}\r\nConnection: close\r\n\r\n");
-    stream.write_all(req.as_bytes())?;
-
-    let mut reader = BufReader::new(stream);
-    let mut content_length: Option<u64> = None;
-
-    // Read headers
-    loop {
-        let mut line = String::new();
-        reader.read_line(&mut line)?;
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            break;
-        }
-        if let Some(val) = trimmed.strip_prefix("Content-Length:") {
-            content_length = val.trim().parse().ok();
-        }
-    }
-
-    if let Some(total) = content_length {
-        total_estimate.store(total, Ordering::Relaxed);
-    }
-
-    let mut file = std::fs::File::create(output)?;
-    let mut buf = [0u8; 64 * 1024];
-    let mut written: u64 = 0;
-    let mut flush_counter: u64 = 0;
-
-    loop {
-        if stats.cancel.load(Ordering::Relaxed) {
-            break;
-        }
-        let n = reader.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buf[..n])?;
-        written += n as u64;
-        flush_counter += 1;
-        if flush_counter % 16 == 0 {
-            stats.written_bytes.store(written, Ordering::Relaxed);
-        }
-    }
-
-    stats.written_bytes.store(written, Ordering::Relaxed);
-    Ok(())
-}
-
-/// Read up to `want` bytes starting `start`. Waits briefly for the file to
-/// appear / grow (up to 5s for first-byte, then returns immediately).
+/// Read up to `want` bytes starting `start`. Waits for the file to appear
+/// and for data to become available (up to 60s total).
 /// Returns (bytes, current_file_size).
 fn read_available(
     path: &std::path::Path,
     start: u64,
     want: u64,
-    _finished: &AtomicBool,
+    finished: &AtomicBool,
 ) -> anyhow::Result<(Vec<u8>, u64)> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
     loop {
         let mut file = match std::fs::File::open(path) {
             Ok(f) => f,
             Err(_) => {
                 if std::time::Instant::now() < deadline {
-                    std::thread::sleep(std::time::Duration::from_millis(80));
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                     continue;
                 }
                 return Ok((Vec::new(), 0));
@@ -373,10 +291,13 @@ fn read_available(
             buf.truncate(filled);
             return Ok((buf, size));
         }
-        // File exists but hasn't grown past `start` yet — wait briefly then
-        // return empty so the client retries instantly rather than timing out.
+        // File exists but hasn't grown past `start` yet — keep waiting if
+        // the relay/transcode is still running.
+        if finished.load(Ordering::Relaxed) {
+            return Ok((Vec::new(), size));
+        }
         if std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(80));
+            std::thread::sleep(std::time::Duration::from_millis(100));
             continue;
         }
         return Ok((Vec::new(), size));
@@ -434,9 +355,15 @@ fn handle_request(
                     (data, cur, StatusCode(206), Some(content_range))
                 }
                 Ok((_empty, cur)) => {
-                    // Data not ready yet — return 206 with empty body so the
-                    // client retries immediately instead of timing out.
-                    (Vec::new(), cur, StatusCode(206), None)
+                    // Data not ready yet — return 206 with Content-Range so
+                    // the browser knows the total file size and can handle
+                    // the partial response gracefully.
+                    let content_range = if cur > 0 {
+                        Some(format!("bytes */{}", cur))
+                    } else {
+                        None
+                    };
+                    (Vec::new(), cur, StatusCode(206), content_range)
                 }
                 Err(_) => {
                     let _ = req.respond(Response::empty(StatusCode(416)));
