@@ -1,0 +1,53 @@
+[package]
+name = "video-player"
+version = "0.0.1"
+description = "A beautiful cross-format video player powered by Tauri + FFmpeg SDK"
+edition = "2021"
+
+[lib]
+name = "video_player_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+rfd = "0.14"
+# Synchronous HTTP client with a pure-Rust TLS stack (rustls). All network I/O
+# happens here in the app (the embedded FFmpeg only touches local files).
+# `tls` enables the rustls backend (webpki-roots); `native-certs` also loads the
+# system CA store so corporate/intercepted certs are accepted.
+ureq = { version = "2", default-features = false, features = ["tls", "native-certs", "gzip"] }
+url = "2"
+ffmpeg = { package = "ffmpeg-next", version = "7" }
+tauri-plugin-opener = "2"
+quick-xml = "0.41.0"
+
+[features]
+# Build FFmpeg from source and statically link it into the app.
+# The packaged app then needs NO ffmpeg installed on the target machine.
+embedded-ffmpeg = [
+    "ffmpeg/build",
+    "ffmpeg/build-license-gpl",
+    "ffmpeg/build-lib-x264",
+]
+default = ["embedded-ffmpeg"]
+
+# Use a patched fork of ffmpeg-sys-next that enables a system TLS backend
+# (SecureTransport on macOS/iOS, Schannel on Windows, OpenSSL on Linux) so
+# that https:// streams can be opened. Builds identically in CI and locally.
+[patch.crates-io]
+ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

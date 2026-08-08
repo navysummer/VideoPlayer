@@ -1,0 +1,519 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        default: '0.0.1'
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # 与仓库 pnpm-lock.yaml 的 lockfileVersion 9.0 匹配
+  PNPM_VERSION: '9'
+  NODE_VERSION: '22'
+  # 软件名（产物文件名前缀）
+  APP_NAME: 'liuying'
+
+jobs:
+  # ─────────────────────────────────────────────
+  #  Frontend build (shared across all platforms)
+  # ─────────────────────────────────────────────
+  frontend:
+    name: Build frontend
+    runs-on: ubuntu-22.04
+    outputs:
+      frontend-dist: frontend-dist
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────
+  #  macOS (x86_64 + arm64)
+  # ─────────────────────────────────────────────
+  macos:
+    name: macOS (${{ matrix.arch }})
+    needs: frontend
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - arch: arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install system deps
+        run: |
+          brew install nasm librsvg 2>/dev/null || true
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            unset APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
+              APPLE_TEAM_ID APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_KEYCHAIN
+          fi
+          pnpm tauri build --target ${{ matrix.target }} --bundles dmg
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_KEYCHAIN: ${{ secrets.APPLE_KEYCHAIN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  #  macOS universal binary (x86_64 + arm64 merged)
+  # ─────────────────────────────────────────────
+  macos-universal:
+    name: macOS (universal)
+    needs: [frontend, macos]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin, aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: universal-apple-darwin
+
+      - name: Install system deps
+        run: |
+          brew install nasm librsvg 2>/dev/null || true
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build universal binary
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            unset APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
+              APPLE_TEAM_ID APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_KEYCHAIN
+          fi
+          pnpm tauri build --target universal-apple-darwin --bundles dmg
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+      - name: Upload universal artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: src-tauri/target/universal-apple-darwin/release/bundle/**/*.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  #  Windows (x86_64 + arm64)
+  # ─────────────────────────────────────────────
+  windows:
+    name: Windows (${{ matrix.arch }})
+    needs: frontend
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-2022
+            target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles msi,nsis
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  #  Linux (x86_64 + arm64)
+  # ─────────────────────────────────────────────
+  linux:
+    name: Linux (${{ matrix.arch }})
+    needs: frontend
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            xdg-utils \
+            rpm \
+            nasm
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles appimage,deb,rpm
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  #  iOS build
+  # ─────────────────────────────────────────────
+  ios:
+    name: iOS IPA
+    needs: frontend
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ios
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build iOS
+        run: |
+          pnpm tauri ios init
+          pnpm tauri ios build --no-sign
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: src-tauri/gen/apple/build/**/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  #  Android build
+  # ─────────────────────────────────────────────
+  android:
+    name: Android APK
+    needs: frontend
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: android
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -yqq \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            nasm
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Android APK
+        run: |
+          pnpm tauri android init
+          pnpm tauri android build --apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: src-tauri/gen/android/app/build/outputs/apk/**
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  #  Create GitHub Release
+  # ─────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: [macos, macos-universal, windows, linux, ios, android]
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Normalize artifact filenames
+        run: |
+          # 文件名规范：软件名-系统类型-架构类型-版本号.后缀
+          VER="${GITHUB_REF_NAME#v}"
+          APP="${{ env.APP_NAME }}"
+          declare -A os_map=(
+            [macos-x86_64]="macos-x86_64"
+            [macos-arm64]="macos-arm64"
+            [macos-universal]="macos-universal"
+            [windows-x86_64]="windows-x86_64"
+            [windows-arm64]="windows-arm64"
+            [linux-x86_64]="linux-x86_64"
+            [linux-arm64]="linux-arm64"
+            [ios]="ios-arm64"
+            [android]="android"
+          )
+          cd artifacts
+          for d in */; do
+            dir="${d%/}"
+            os="${os_map[$dir]:-$dir}"
+            for f in "$dir"/*; do
+              [ -f "$f" ] || continue
+              base="${f%.*}"
+              ext="${f##*.}"
+              mv "$f" "$dir/${APP}-${os}-${VER}.${ext}" || true
+            done
+          done
+        shell: bash
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "流影 ${{ github.ref_name }}"
+          body: |
+            ## 流影 ${{ github.ref_name }}
+
+            ### Downloads
+            See attached assets for your platform.
+
+            ### Supported Platforms
+            - macOS (x86_64, arm64, universal)
+            - Windows (x86_64, arm64)
+            - Linux (x86_64, arm64)
+            - iOS (arm64)
+            - Android (arm64, x86_64)
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.msi
+            artifacts/**/*.exe
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
+            artifacts/**/*.apk
+            artifacts/**/*.ipa
+          draft: true
+          prerelease: false

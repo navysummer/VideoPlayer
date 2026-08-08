@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>流影 · 全格式视频播放器</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- ===== Top bar ===== -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark"><span class="play-tri"></span></div>
+        <div class="brand-text">
+          <span class="brand-name">流影</span>
+          <span class="brand-sub">LYU YING</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="tbtn ghost" id="btnUrl">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10.6 13.4a1 1 0 0 1-1.4 0 4 4 0 0 1 0-5.7l4-4a4 4 0 1 1 5.7 5.7l-1.8 1.8a1 1 0 1 1-1.4-1.4l1.8-1.8a2 2 0 0 0-2.9-2.9l-4 4a2 2 0 0 0 0 2.9 1 1 0 0 1 0 1.4Z"/><path fill="currentColor" d="M13.4 10.6a1 1 0 0 1 1.4 0 4 4 0 0 1 0 5.7l-4 4a4 4 0 1 1-5.7-5.7l1.8-1.8a1 1 0 1 1 1.4 1.4l-1.8 1.8a2 2 0 0 0 2.9 2.9l4-4a2 2 0 0 0 0-2.9 1 1 0 0 1 0-1.4Z"/></svg>
+          网络播放
+        </button>
+        <button class="tbtn primary" id="btnOpen">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V4a1 1 0 0 1 1-1Z"/></svg>
+          打开文件
+        </button>
+      </div>
+    </header>
+
+    <!-- ===== Main stage ===== -->
+    <main class="stage" id="stage">
+      <video id="video" playsinline></video>
+
+      <div id="empty" class="empty">
+        <div class="empty-icon"><span class="play-tri"></span></div>
+        <h2>银屏静候 · 卷帘开卷</h2>
+        <p>打开本地影片，或粘贴一曲网络清音，<br/>mp4 · mkv · flv · avi · rmvb · mov · m3u8 · rtmp 皆可相迎</p>
+        <div class="empty-buttons">
+          <button class="primary big" id="btnOpenEmpty">选择文件</button>
+          <button class="ghost big" id="btnUrlEmpty">粘贴网络地址</button>
+        </div>
+      </div>
+
+      <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p id="loadingText">正在解析媒体…</p>
+      </div>
+
+      <div id="dropHint" class="drop-hint hidden">
+        <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V4a1 1 0 0 1 1-1Z"/></svg>
+        松卷以开
+      </div>
+
+      <!-- custom controls -->
+      <div id="controls" class="controls hidden">
+        <input id="seek" class="seek" type="range" min="0" max="1000" value="0" step="1" />
+        <div class="controls-row">
+          <button class="cbtn" id="btnPrev" title="后退 10 秒">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 5V1L5 7l7 6V9a6 6 0 1 1-6 6h2a4 4 0 1 0 4-4V5Z"/></svg>
+          </button>
+          <button class="cbtn play" id="btnPlay" title="播放 / 暂停">
+            <svg viewBox="0 0 24 24" class="ic-play"><path fill="currentColor" d="M7 4.5a1 1 0 0 1 1.6-.8l12 8.5a1 1 0 0 1 0 1.6l-12 8.5a1 1 0 0 1-1.6-.8v-17Z"/></svg>
+            <svg viewBox="0 0 24 24" class="ic-pause hidden"><path fill="currentColor" d="M6 4.5a1 1 0 0 1 2 0v15a1 1 0 1 1-2 0v-15Zm10 0a1 1 0 1 1 2 0v15a1 1 0 1 1-2 0v-15Z"/></svg>
+          </button>
+          <button class="cbtn" id="btnNext" title="前进 10 秒">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 5V1l7 6-7 6V9a6 6 0 1 0 6 6h-2a4 4 0 1 1-4-4V5Z"/></svg>
+          </button>
+          <span class="time" id="time">00:00 <i>/</i> 00:00</span>
+          <div class="spacer"></div>
+          <span class="speed" id="speed">1x</span>
+          <div class="volume">
+            <button class="cbtn" id="btnMute" title="静音">
+              <svg viewBox="0 0 24 24" class="ic-vol"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Zm12 3a3 3 0 0 0-1.5-2.6v5.2A3 3 0 0 0 16 12Zm-1.5-6.9v2.1a5.5 5.5 0 0 1 0 9.6v2.1a7.5 7.5 0 0 0 0-13.8Z"/></svg>
+              <svg viewBox="0 0 24 24" class="ic-mute hidden"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Zm12.3-2.3 1.2 1.2-3.3 3.3 3.3 3.3-1.2 1.2-3.3-3.3-3.3 3.3-1.2-1.2 3.3-3.3-3.3-3.3 1.2-1.2 3.3 3.3 3.3-3.3Z"/></svg>
+            </button>
+            <input id="vol" class="vol" type="range" min="0" max="100" value="80" />
+          </div>
+          <button class="cbtn" id="btnFs" title="全屏">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h6v2H6v4H4V4Zm10 0h6v6h-2V6h-4V4ZM4 14h2v4h4v2H4v-6Zm14 0h2v6h-6v-2h4v-4Z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- transcode progress -->
+      <div id="tprogress" class="tprogress hidden">
+        <div class="tprogress-track"><div id="tprogressBar" class="tprogress-bar"></div></div>
+        <span id="tprogressText">正在转码…</span>
+      </div>
+    </main>
+
+    <!-- ===== Info bar ===== -->
+    <footer class="infobar" id="infobar">
+      <div class="meta">
+        <span id="metaTitle">未加载媒体</span>
+        <span id="metaDetail" class="dim"></span>
+      </div>
+      <div class="info-right">
+        <span id="metaCompat" class="compat hidden"></span>
+        <button class="tbtn ghost icon-only" id="btnSettings" title="设置">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Zm7.4 3.5c0-.6-.05-1.1-.15-1.6l2-1.55-2-3.4-2.35.95a7.4 7.4 0 0 0-2.7-1.55L14 1h-4l-.2 2.4a7.4 7.4 0 0 0-2.7 1.55l-2.35-.95-2 3.4 2 1.55c-.1.5-.15 1-.15 1.6s.05 1.1.15 1.6l-2 1.55 2 3.4 2.35-.95a7.4 7.4 0 0 0 2.7 1.4L10 24h4l.2-2.4a7.4 7.4 0 0 0 2.7-1.4l2.35.95 2-3.4-2-1.55c.1-.5.15-1.1.15-1.6Z"/></svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ===== URL modal ===== -->
+  <div id="urlModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>播放网络地址</h3>
+      <p class="modal-hint">支持 http(s) 视频、m3u8 / HLS 直播流、RTMP 推流地址等</p>
+      <input id="urlInput" type="text" spellcheck="false" placeholder="https://… /  http://… / rtmp://… / m3u8 地址" />
+      <div class="modal-actions">
+        <button class="ghost" id="urlCancel">取消</button>
+        <button class="primary" id="urlOk">开始播放</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Settings / About modal ===== -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card settings-card">
+      <h3>设置</h3>
+      <div class="settings-tabs">
+        <button class="tab active" data-panel="about">关于</button>
+      </div>
+
+      <div class="settings-panel" id="panel-about">
+        <div class="about-head">
+          <div class="about-mark"><span class="play-tri"></span></div>
+          <div class="about-title">
+            <span class="about-name">流影</span>
+            <span class="about-sub">LY·YING　全格式视频播放器</span>
+          </div>
+        </div>
+
+        <div class="about-section">
+          <h4>书卷雅意 · 相迎万相</h4>
+          <ul class="feature-list">
+            <li>千里屏幕收一匣：现代视觉风格、雕花纹饰，声色俱佳。</li>
+            <li>一卷在手，万格式可读：本地影片、在线视频、直播流随取随看，今日即开即赏。</li>
+            <li>尚无阻格，跨平台同游：一款可伴 Windows、macOS、Linux 世代传抄。</li>
+            <li>静谧省心：即点即放，无需额外安装任何环境。</li>
+            <li>体贴细节：倍速、音量、进度、浮窗、全屏、拖曳任意快件。</li>
+          </ul>
+        </div>
+
+        <div class="about-divider"></div>
+
+        <div class="about-section">
+          <h4>作者</h4>
+          <ul class="author-list">
+            <li>
+              <span class="author-icon">名</span>
+              <span class="author-main">
+                <span class="author-name">navysummer</span>
+                <span class="author-role">独立创作者</span>
+              </span>
+            </li>
+            <li>
+              <span class="author-icon">G</span>
+              <span class="author-main">
+                <button class="link" data-href="https://github.com/navysummer">GitHub</button>
+                <span class="author-role">github.com/navysummer</span>
+              </span>
+            </li>
+            <li>
+              <span class="author-icon">博</span>
+              <span class="author-main">
+                <button class="link" data-href="https://www.cnblogs.com/navysummer">博客</button>
+                <span class="author-role">cnblogs.com/navysummer</span>
+              </span>
+            </li>
+            <li>
+              <span class="author-icon">微</span>
+              <span class="author-main">
+                <span class="author-name">navysummer1001</span>
+                <span class="author-role">微信 ID</span>
+              </span>
+            </li>
+          </ul>
+          <p class="about-foot">愿此卷录君心 · 谢谢使用流影</p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="ghost" id="settingsClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="main.js"></script>
+</body>
+</html>

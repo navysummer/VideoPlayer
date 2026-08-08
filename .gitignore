@@ -1,0 +1,18 @@
+# --- Rust / Tauri ---
+/target
+/src-tauri/target
+/src-tauri/gen/schemas
+/.ffmpeg-vendor
+
+# --- Node / pnpm / Vite ---
+/node_modules
+/dist
+*.local
+
+# --- Logs ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- macOS ---
+.DS_Store
