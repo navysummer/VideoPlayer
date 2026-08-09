@@ -362,6 +362,19 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
         }
         configure.arg(format!("--cc={android_cc_raw_path}"));
 
+        // Set explicit target triple for the NDK clang
+        let android_target = if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("aarch64") {
+            "aarch64-linux-android24"
+        } else if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("arm") {
+            "armv7a-linux-androideabi24"
+        } else if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("x86_64") {
+            "x86_64-linux-android24"
+        } else {
+            "i686-linux-android24"
+        };
+        configure.arg(format!("--extra-cflags=--target={android_target}"));
+        configure.arg(format!("--extra-ldflags=--target={android_target}"));
+
         for tool in ["nm", "strip"] {
             let tool_path = android_cc_path
                 .join("..")

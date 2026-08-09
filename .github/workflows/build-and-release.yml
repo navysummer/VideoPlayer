@@ -573,16 +573,10 @@ jobs:
         timeout-minutes: 120
         shell: bash
         run: |
-          # Install NDK 26 (known to work with FFmpeg source build)
-          sdkmanager --install "ndk;26.1.10909125" 2>&1 || true
-          NDK_HOME=$(ls -d "$ANDROID_HOME/ndk/26."* 2>/dev/null | sort -V | tail -1)
-          if [ -z "$NDK_HOME" ] || [ ! -d "$NDK_HOME" ]; then
-            NDK_HOME=$(ls -d "$ANDROID_HOME/ndk/"* 2>/dev/null | sort -V | tail -1)
-          fi
+          NDK_HOME=$(ls -d "$ANDROID_HOME/ndk/"* 2>/dev/null | sort -V | tail -1)
           if [ -n "$NDK_HOME" ] && [ -d "$NDK_HOME" ]; then
             export CARGO_NDK_SYSROOT_PATH="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
             export CC_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
-            export AR_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           fi
           pnpm tauri android init
           pnpm tauri android build --apk -- --no-default-features --features embedded-ffmpeg
