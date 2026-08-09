@@ -270,11 +270,14 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
-      - name: Download prebuilt FFmpeg 7.1 (Windows x86_64)
+      - name: Download prebuilt FFmpeg 7.1 (Windows)
         shell: pwsh
-        if: matrix.arch == 'x86_64'
         run: |
-          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip"
+          if ("${{ matrix.arch }}" -eq "arm64") {
+            $url = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n7.1-latest-winarm64-gpl-shared-7.1.zip"
+          } else {
+            $url = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip"
+          }
           $outDir = mkdir -Force .ffmpeg-win
           $out = Join-Path $outDir.FullName "ffmpeg-7.1.zip"
           curl.exe -L --retry 3 --retry-delay 2 --connect-timeout 15 $url -o $out
@@ -282,23 +285,9 @@ jobs:
           $dir = Get-ChildItem $outDir.FullName -Directory | Select-Object -First 1
           "FFMPEG_DIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Download FFmpeg source (Windows arm64)
-        shell: bash
-        if: matrix.arch == 'arm64'
-        run: |
-          mkdir -p .ffmpeg-vendor
-          for i in 1 2 3 4 5; do
-            curl -L --retry 3 --retry-delay 2 --connect-timeout 15 \
-              https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz \
-              -o .ffmpeg-vendor/ffmpeg-7.1.tar.xz && break
-            echo "Attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
-          ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
-
       - name: Build Tauri app
-        timeout-minutes: ${{ matrix.arch == 'arm64' && 240 || 60 }}
-        run: pnpm tauri build --target ${{ matrix.target }} --bundles msi,nsis ${{ matrix.arch == 'x86_64' && '-- --no-default-features --features file-dialog' || '' }}
+        timeout-minutes: 60
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles msi,nsis -- --no-default-features --features file-dialog
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

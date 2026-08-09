@@ -31,7 +31,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["msi", "nsis"],
     "category": "Video",
     "icon": [
       "icons/32x32.png",
@@ -42,6 +42,11 @@
     ],
     "macOS": {
       "infoPlist": "Info.plist"
+    },
+    "windows": {
+      "wix": {
+        "language": "zh-CN"
+      }
     }
   }
 }
