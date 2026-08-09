@@ -244,9 +244,9 @@ fn find_sysroot() -> Option<String> {
             })
             .or_else(|_| env::var("CARGO_NDK_SYSROOT_PATH"))
             .or_else(|_| {
-                let home = env::var("ANDROID_HOME").ok()?;
+                let home = env::var("ANDROID_HOME").map_err(|_| std::env::VarError::NotPresent)?;
                 let ndk_dir = Path::new(&home).join("ndk");
-                let entries = std::fs::read_dir(&ndk_dir).ok()?;
+                let entries = std::fs::read_dir(&ndk_dir).map_err(|_| std::env::VarError::NotPresent)?;
                 let mut versions: Vec<_> = entries
                     .filter_map(|e| e.ok())
                     .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
