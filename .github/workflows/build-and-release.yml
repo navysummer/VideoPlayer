@@ -573,6 +573,13 @@ jobs:
         timeout-minutes: 120
         shell: bash
         run: |
+          # Set up NDK env vars for ffmpeg-sys-next cross-compilation
+          NDK_HOME=$(echo "$NDK_HOME" | head -1)
+          if [ -n "$NDK_HOME" ] && [ -d "$NDK_HOME" ]; then
+            export CARGO_NDK_SYSROOT_PATH="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+            export CC_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+            export AR_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          fi
           pnpm tauri android init
           pnpm tauri android build --apk -- --no-default-features --features embedded-ffmpeg
 
