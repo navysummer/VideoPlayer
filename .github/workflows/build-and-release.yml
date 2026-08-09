@@ -270,8 +270,21 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
-      - name: Download FFmpeg source
+      - name: Download prebuilt FFmpeg (Windows x86_64)
+        shell: pwsh
+        if: matrix.arch == 'x86_64'
+        run: |
+          $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z"
+          $out = ".ffmpeg-win\ffmpeg.7z"
+          mkdir -Force .ffmpeg-win
+          curl.exe -L --retry 3 --retry-delay 2 --connect-timeout 15 $url -o $out
+          & "C:\Program Files\7-Zip\7z.exe" x $out -o.ffmpeg-win -y
+          $dir = Get-ChildItem .ffmpeg-win -Directory | Select-Object -First 1
+          "FFMPEG_DIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Download FFmpeg source (Windows arm64)
         shell: bash
+        if: matrix.arch == 'arm64'
         run: |
           mkdir -p .ffmpeg-vendor
           for i in 1 2 3 4 5; do
@@ -284,8 +297,8 @@ jobs:
           ls -lh .ffmpeg-vendor/ffmpeg-7.1.tar.xz
 
       - name: Build Tauri app
-        timeout-minutes: 240
-        run: pnpm tauri build --target ${{ matrix.target }} --bundles msi,nsis
+        timeout-minutes: ${{ matrix.arch == 'arm64' && 240 || 60 }}
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles msi,nsis ${{ matrix.arch == 'x86_64' && '-- --no-default-features --features file-dialog' || '' }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
