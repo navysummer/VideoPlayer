@@ -120,6 +120,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app
+        timeout-minutes: 120
         run: |
           if [ -z "$APPLE_CERTIFICATE" ]; then
             unset APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
@@ -282,6 +283,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app
+        timeout-minutes: 120
         run: pnpm tauri build --target ${{ matrix.target }} --bundles msi,nsis
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
