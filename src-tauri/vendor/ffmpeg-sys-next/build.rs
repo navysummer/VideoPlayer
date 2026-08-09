@@ -244,23 +244,21 @@ fn find_sysroot() -> Option<String> {
             })
             .or_else(|_| env::var("CARGO_NDK_SYSROOT_PATH"))
             .or_else(|_| {
-                env::var("ANDROID_HOME")
-                    .map(|home| {
-                        let ndk_dir = Path::new(&home).join("ndk");
-                        let entries = std::fs::read_dir(&ndk_dir).ok()?;
-                        let mut versions: Vec<_> = entries
-                            .filter_map(|e| e.ok())
-                            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-                            .collect();
-                        versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-                        versions.first().map(|d| {
-                            d.path()
-                                .join("toolchains/llvm/prebuilt/linux-x86_64/sysroot")
-                                .to_string_lossy()
-                                .to_string()
-                        })
-                    })
-                    .unwrap_or_default()
+                let home = env::var("ANDROID_HOME").ok()?;
+                let ndk_dir = Path::new(&home).join("ndk");
+                let entries = std::fs::read_dir(&ndk_dir).ok()?;
+                let mut versions: Vec<_> = entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                    .collect();
+                versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                versions.first().map(|d| {
+                    d.path()
+                        .join("toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                        .to_string_lossy()
+                        .to_string()
+                })
+                .ok_or_else(|| std::env::VarError::NotPresent)
             })
             .expect("Missing android sysroot path. Set NDK_HOME, CARGO_NDK_SYSROOT_PATH, or ANDROID_HOME");
 

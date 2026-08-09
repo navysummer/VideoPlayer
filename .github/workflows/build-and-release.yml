@@ -275,11 +275,11 @@ jobs:
         if: matrix.arch == 'x86_64'
         run: |
           $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z"
-          $out = ".ffmpeg-win\ffmpeg.7z"
-          mkdir -Force .ffmpeg-win
+          $outDir = mkdir -Force .ffmpeg-win
+          $out = Join-Path $outDir.FullName "ffmpeg.7z"
           curl.exe -L --retry 3 --retry-delay 2 --connect-timeout 15 $url -o $out
-          & "C:\Program Files\7-Zip\7z.exe" x $out -o.ffmpeg-win -y
-          $dir = Get-ChildItem .ffmpeg-win -Directory | Select-Object -First 1
+          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$($outDir.FullName)" -y
+          $dir = Get-ChildItem $outDir.FullName -Directory | Select-Object -First 1
           "FFMPEG_DIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Download FFmpeg source (Windows arm64)
