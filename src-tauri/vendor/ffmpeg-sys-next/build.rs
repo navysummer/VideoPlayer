@@ -330,15 +330,12 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
         configure.arg(format!("--cc={android_cc_raw_path}"));
 
         for tool in ["nm", "strip"] {
-            configure.arg(format!(
-                "--{tool}={}",
-                android_cc_path
-                    .join("..")
-                    .join(format!("llvm-{tool}"))
-                    .canonicalize()
-                    .unwrap_or_else(|_| panic!("failed to resolve a path to android {}", tool))
-                    .display()
-            ));
+            let tool_path = android_cc_path
+                .join("..")
+                .join(format!("llvm-{tool}"));
+            if let Ok(resolved) = tool_path.canonicalize() {
+                configure.arg(format!("--{tool}={}", resolved.display()));
+            }
         }
 
         if let Ok(android_target_flags) = env::var(format!("CFLAGS_{}", target))
