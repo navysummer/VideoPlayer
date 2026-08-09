@@ -560,12 +560,6 @@ jobs:
         timeout-minutes: 120
         shell: bash
         run: |
-          sdkmanager --install "ndk;27.0.12077973" || sdkmanager --install "ndk;26.1.10909125" || true
-          NDK_HOME=$(ls -d $ANDROID_HOME/ndk/27.* 2>/dev/null | head -1 || ls -d $ANDROID_HOME/ndk/26.* 2>/dev/null | head -1)
-          export CARGO_NDK_SYSROOT_PATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-          export CC_aarch64_linux_android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang
-          export AR_aarch64_linux_android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-          export CFLAGS_aarch64_linux_android=--target=aarch64-linux-android35
           pnpm tauri android init
           pnpm tauri android build --apk -- --no-default-features --features embedded-ffmpeg
 

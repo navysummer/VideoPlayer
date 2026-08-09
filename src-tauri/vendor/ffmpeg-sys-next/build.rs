@@ -232,10 +232,33 @@ fn find_sysroot() -> Option<String> {
     }
 
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
-        let sysroot_path = env::var("CARGO_NDK_SYSROOT_PATH").expect("Missing android sysroot path. For android cross compilation please use cargo-ndk which exposes all the required NDK paths throught env variables.");
+        // Try CARGO_NDK_SYSROOT_PATH first, then auto-detect from NDK_HOME/ANDROID_HOME
+        let sysroot_path = env::var("CARGO_NDK_SYSROOT_PATH")
+            .or_else(|_| {
+                let ndk_home = env::var("NDK_HOME")
+                    .or_else(|_| {
+                        env::var("ANDROID_NDK_HOME")
+                    })
+                    .or_else(|_| {
+                        env::var("ANDROID_HOME")
+                            .map(|home| {
+                                let ndk_dir = Path::new(&home).join("ndk");
+                                let entries = std::fs::read_dir(&ndk_dir).ok()?;
+                                let mut versions: Vec<_> = entries
+                                    .filter_map(|e| e.ok())
+                                    .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                                    .collect();
+                                versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                                versions.first().map(|d| d.path().to_string_lossy().to_string())
+                            })
+                            .unwrap_or_default()
+                    })?;
+                Ok(Path::new(&ndk_home).join("toolchains/llvm/prebuilt/linux-x86_64/sysroot").to_string_lossy().to_string())
+            })
+            .expect("Missing android sysroot path. Set CARGO_NDK_SYSROOT_PATH, NDK_HOME, or ANDROID_HOME");
 
         if !Path::new(&sysroot_path).exists() {
-            panic!("Android sysroot path does not exists: {}", sysroot_path);
+            panic!("Android sysroot path does not exist: {}", sysroot_path);
         }
 
         return Some(sysroot_path);
@@ -317,7 +340,11 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
     }
 
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
-        // cargo ndk auto populates rust env variables for android cross compilation
+        // Provide sysroot for Android NDK cross-compilation
+        if let Some(sysroot) = sysroot {
+            configure.arg(format!("--sysroot={}", sysroot));
+        }
+
         // so we can just leverage the same compiler path and cflags for ffmpeg build
         let target_cc_key = format!("CC_{}", target).replace('-', "_");
         let android_cc_raw_path = env::var(format!("CC_{}", target))
