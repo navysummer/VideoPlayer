@@ -270,15 +270,15 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
-      - name: Download prebuilt FFmpeg (Windows x86_64)
+      - name: Download prebuilt FFmpeg 7.1 (Windows x86_64)
         shell: pwsh
         if: matrix.arch == 'x86_64'
         run: |
-          $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z"
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n7.1-latest-win64-gpl-shared-7.1.zip"
           $outDir = mkdir -Force .ffmpeg-win
-          $out = Join-Path $outDir.FullName "ffmpeg.7z"
+          $out = Join-Path $outDir.FullName "ffmpeg-7.1.zip"
           curl.exe -L --retry 3 --retry-delay 2 --connect-timeout 15 $url -o $out
-          & "C:\Program Files\7-Zip\7z.exe" x "$out" -o"$($outDir.FullName)" -y
+          Expand-Archive -Path $out -DestinationPath $outDir.FullName -Force
           $dir = Get-ChildItem $outDir.FullName -Directory | Select-Object -First 1
           "FFMPEG_DIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -573,8 +573,12 @@ jobs:
         timeout-minutes: 120
         shell: bash
         run: |
-          # Set up NDK env vars for ffmpeg-sys-next cross-compilation
-          NDK_HOME=$(echo "$NDK_HOME" | head -1)
+          # Install NDK 26 (known to work with FFmpeg source build)
+          sdkmanager --install "ndk;26.1.10909125" 2>&1 || true
+          NDK_HOME=$(ls -d "$ANDROID_HOME/ndk/26."* 2>/dev/null | sort -V | tail -1)
+          if [ -z "$NDK_HOME" ] || [ ! -d "$NDK_HOME" ]; then
+            NDK_HOME=$(ls -d "$ANDROID_HOME/ndk/"* 2>/dev/null | sort -V | tail -1)
+          fi
           if [ -n "$NDK_HOME" ] && [ -d "$NDK_HOME" ]; then
             export CARGO_NDK_SYSROOT_PATH="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
             export CC_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
