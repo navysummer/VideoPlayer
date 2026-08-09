@@ -232,30 +232,37 @@ fn find_sysroot() -> Option<String> {
     }
 
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
-        // Try CARGO_NDK_SYSROOT_PATH first, then auto-detect from NDK_HOME/ANDROID_HOME
-        let sysroot_path = env::var("CARGO_NDK_SYSROOT_PATH")
-            .or_else(|_| {
-                let ndk_home = env::var("NDK_HOME")
-                    .or_else(|_| {
-                        env::var("ANDROID_NDK_HOME")
-                    })
-                    .or_else(|_| {
-                        env::var("ANDROID_HOME")
-                            .map(|home| {
-                                let ndk_dir = Path::new(&home).join("ndk");
-                                let entries = std::fs::read_dir(&ndk_dir).ok()?;
-                                let mut versions: Vec<_> = entries
-                                    .filter_map(|e| e.ok())
-                                    .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-                                    .collect();
-                                versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-                                versions.first().map(|d| d.path().to_string_lossy().to_string())
-                            })
-                            .unwrap_or_default()
-                    })?;
-                Ok(Path::new(&ndk_home).join("toolchains/llvm/prebuilt/linux-x86_64/sysroot").to_string_lossy().to_string())
+        // Prefer NDK_HOME (set by Tauri/cargo-ndk to the active NDK), then
+        // CARGO_NDK_SYSROOT_PATH, then auto-detect from ANDROID_HOME.
+        let sysroot_path = env::var("NDK_HOME")
+            .or_else(|_| env::var("ANDROID_NDK_HOME"))
+            .map(|ndk_home| {
+                Path::new(&ndk_home)
+                    .join("toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                    .to_string_lossy()
+                    .to_string()
             })
-            .expect("Missing android sysroot path. Set CARGO_NDK_SYSROOT_PATH, NDK_HOME, or ANDROID_HOME");
+            .or_else(|_| env::var("CARGO_NDK_SYSROOT_PATH"))
+            .or_else(|_| {
+                env::var("ANDROID_HOME")
+                    .map(|home| {
+                        let ndk_dir = Path::new(&home).join("ndk");
+                        let entries = std::fs::read_dir(&ndk_dir).ok()?;
+                        let mut versions: Vec<_> = entries
+                            .filter_map(|e| e.ok())
+                            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+                            .collect();
+                        versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                        versions.first().map(|d| {
+                            d.path()
+                                .join("toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                                .to_string_lossy()
+                                .to_string()
+                        })
+                    })
+                    .unwrap_or_default()
+            })
+            .expect("Missing android sysroot path. Set NDK_HOME, CARGO_NDK_SYSROOT_PATH, or ANDROID_HOME");
 
         if !Path::new(&sysroot_path).exists() {
             panic!("Android sysroot path does not exist: {}", sysroot_path);
