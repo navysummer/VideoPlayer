@@ -319,7 +319,10 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
         // cargo ndk auto populates rust env variables for android cross compilation
         // so we can just leverage the same compiler path and cflags for ffmpeg build
-        let android_cc_raw_path = env::var(format!("CC_{}", target)).expect("Missing CC path for android. Make sure to use cargo-ndk for adnrdoic cross compilation");
+        let target_cc_key = format!("CC_{}", target).replace('-', "_");
+        let android_cc_raw_path = env::var(format!("CC_{}", target))
+            .or_else(|_| env::var(&target_cc_key))
+            .expect("Missing CC path for android. Make sure to use cargo-ndk for android cross compilation");
         let android_cc_path = Path::new(&android_cc_raw_path);
         if !android_cc_path.exists() {
             panic!("Android CC path does not exists: {}", android_cc_raw_path);
@@ -338,7 +341,9 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
             ));
         }
 
-        if let Ok(android_target_flags) = env::var(format!("CFLAGS_{}", target)).as_deref() {
+        if let Ok(android_target_flags) = env::var(format!("CFLAGS_{}", target))
+            .or_else(|_| env::var(format!("CFLAGS_{}", target).replace('-', "_")))
+            .as_deref() {
             configure.arg(format!("--extra-cflags={android_target_flags}"));
             configure.arg(format!("--extra-ldflags={android_target_flags}"));
         }
