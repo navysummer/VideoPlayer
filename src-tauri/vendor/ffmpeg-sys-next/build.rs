@@ -322,6 +322,7 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
         let target_cc_key = format!("CC_{}", target).replace('-', "_");
         let android_cc_raw_path = env::var(format!("CC_{}", target))
             .or_else(|_| env::var(&target_cc_key))
+            .or_else(|_| env::var("TARGET_CC"))
             .expect("Missing CC path for android. Make sure to use cargo-ndk for android cross compilation");
         let android_cc_path = Path::new(&android_cc_raw_path);
         if !android_cc_path.exists() {
@@ -340,6 +341,7 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
 
         if let Ok(android_target_flags) = env::var(format!("CFLAGS_{}", target))
             .or_else(|_| env::var(format!("CFLAGS_{}", target).replace('-', "_")))
+            .or_else(|_| env::var("TARGET_CFLAGS"))
             .as_deref() {
             configure.arg(format!("--extra-cflags={android_target_flags}"));
             configure.arg(format!("--extra-ldflags={android_target_flags}"));
