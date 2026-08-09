@@ -567,7 +567,7 @@ jobs:
           export AR_aarch64_linux_android=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
           export CFLAGS_aarch64_linux_android=--target=aarch64-linux-android35
           pnpm tauri android init
-          pnpm tauri android build --apk
+          pnpm tauri android build --apk -- --no-default-features --features embedded-ffmpeg
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
