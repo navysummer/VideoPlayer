@@ -22,7 +22,7 @@ env:
   PNPM_VERSION: '9'
   NODE_VERSION: '22'
   # 软件名（产物文件名前缀）
-  APP_NAME: 'liuying'
+  APP_NAME: 'video-player'
 
 jobs:
   # ─────────────────────────────────────────────
@@ -597,29 +597,34 @@ jobs:
 
       - name: Normalize artifact filenames
         run: |
-          # 文件名规范：软件名-系统类型-架构类型-版本号.后缀
+          # 文件名规范：软件名-版本号-系统-架构.后缀（架构可选）
           VER="${GITHUB_REF_NAME#v}"
           APP="${{ env.APP_NAME }}"
           declare -A os_map=(
-            [macos-x86_64]="macos-x86_64"
-            [macos-arm64]="macos-arm64"
-            [macos-universal]="macos-universal"
-            [windows-x86_64]="windows-x86_64"
-            [windows-arm64]="windows-arm64"
-            [linux-x86_64]="linux-x86_64"
-            [linux-arm64]="linux-arm64"
-            [ios]="ios-arm64"
+            [macos-x86_64]="macos x86_64"
+            [macos-arm64]="macos arm64"
+            [macos-universal]="macos universal"
+            [windows-x86_64]="windows x86_64"
+            [windows-arm64]="windows arm64"
+            [linux-x86_64]="linux x86_64"
+            [linux-arm64]="linux arm64"
+            [ios]="ios"
             [android]="android"
           )
           cd artifacts
           for d in */; do
             dir="${d%/}"
-            os="${os_map[$dir]:-$dir}"
+            spec="${os_map[$dir]:-$dir}"
+            read -r os arch <<< "$spec"
             for f in "$dir"/*; do
               [ -f "$f" ] || continue
-              base="${f%.*}"
               ext="${f##*.}"
-              mv "$f" "$dir/${APP}-${os}-${VER}.${ext}" || true
+              if [ -n "$arch" ]; then
+                name="${APP}-${VER}-${os}-${arch}.${ext}"
+              else
+                name="${APP}-${VER}-${os}.${ext}"
+              fi
+              mv "$f" "$dir/$name" || true
             done
           done
         shell: bash
