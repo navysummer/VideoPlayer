@@ -611,12 +611,13 @@ jobs:
             [ios]="ios"
             [android]="android"
           )
+          mkdir -p release
           cd artifacts
           for d in */; do
             dir="${d%/}"
             spec="${os_map[$dir]:-$dir}"
             read -r os arch <<< "$spec"
-            for f in "$dir"/*; do
+            find "$dir" -type f | while IFS= read -r f; do
               [ -f "$f" ] || continue
               ext="${f##*.}"
               if [ -n "$arch" ]; then
@@ -624,7 +625,7 @@ jobs:
               else
                 name="${APP}-${VER}-${os}.${ext}"
               fi
-              mv "$f" "$dir/$name" || true
+              cp "$f" "../release/$name" 2>/dev/null || true
             done
           done
         shell: bash
@@ -647,13 +648,13 @@ jobs:
             - iOS (arm64)
             - Android (arm64, x86_64)
           files: |
-            artifacts/**/*.dmg
-            artifacts/**/*.msi
-            artifacts/**/*.exe
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.AppImage
-            artifacts/**/*.apk
-            artifacts/**/*.ipa
+            release/*.dmg
+            release/*.msi
+            release/*.exe
+            release/*.deb
+            release/*.rpm
+            release/*.AppImage
+            release/*.apk
+            release/*.ipa
           draft: true
           prerelease: false

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "流影视频播放器",
+  "productName": "video-player",
   "version": "0.0.1",
   "identifier": "com.navysummer.videoplayer",
   "build": {
