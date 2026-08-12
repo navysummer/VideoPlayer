@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import UrlModal from "./components/UrlModal.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import NetworkVideo from "./components/NetworkVideo.vue";
 import Toast from "./components/Toast.vue";
 
 const videoEl = ref(null);
@@ -28,6 +29,7 @@ const metaCompatText = ref("");
 
 const urlModalOpen = ref(false);
 const settingsOpen = ref(false);
+const networkOpen = ref(false);
 
 const playingState = ref(false);
 const fsState = ref(false);
@@ -340,8 +342,17 @@ function openSettings() {
   settingsOpen.value = true;
 }
 
+function onNetworkDirect(url) {
+  networkOpen.value = false;
+  openMedia(url);
+}
+
 // ---------- Keyboard ----------
 function onKeydown(e) {
+  if (networkOpen.value) {
+    if (e.key === "Escape") networkOpen.value = false;
+    return;
+  }
   if (urlModalOpen.value) {
     if (e.key === "Escape") urlModalOpen.value = false;
     return;
@@ -431,6 +442,10 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="top-actions">
+        <button class="tbtn ghost" @click="networkOpen = true">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm7 9h-3.1a15.7 15.7 0 0 0-.9-4.4A8.1 8.1 0 0 1 19 11Zm-10 0h-4a8.1 8.1 0 0 1 4-4.4 15.7 15.7 0 0 0-.9 4.4Zm0 2a15.7 15.7 0 0 0 .9 4.4 8.1 8.1 0 0 1-4-4.4h3.1Zm2 5.2A11 11 0 0 1 9.9 13h4.2a11 11 0 0 1-1.1 5.2A11 11 0 0 1 12 18.2a11 11 0 0 1-1-1ZM14.9 7a15.7 15.7 0 0 1 .9 4h3.1a8.1 8.1 0 0 0-4-4ZM12 4.1c.4.3.7.7 1 1.1a12 12 0 0 0-2 0 7 7 0 0 1 1-1.1Zm0 15.8c-.4-.3-.7-.7-1-1.1a12 12 0 0 0 2 0 7 7 0 0 1-1 1.1Z"/></svg>
+          网络视频
+        </button>
         <button class="tbtn ghost" @click="openUrlModal">
           <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10.6 13.4a1 1 0 0 1-1.4 0 4 4 0 0 1 0-5.7l4-4a4 4 0 1 1 5.7 5.7l-1.8 1.8a1 1 0 1 1-1.4-1.4l1.8-1.8a2 2 0 0 0-2.9-2.9l-4 4a2 2 0 0 0 0 2.9 1 1 0 0 1 0 1.4Z"/><path fill="currentColor" d="M13.4 10.6a1 1 0 0 1 1.4 0 4 4 0 0 1 0 5.7l-4 4a4 4 0 1 1-5.7-5.7l1.8-1.8a1 1 0 1 1 1.4 1.4l-1.8 1.8a2 2 0 0 0 2.9 2.9l4-4a2 2 0 0 0 0-2.9 1 1 0 0 1 0-1.4Z"/></svg>
           网络播放
@@ -531,6 +546,7 @@ onBeforeUnmount(() => {
     </footer>
 
     <!-- modals & toast -->
+    <NetworkVideo :open="networkOpen" @close="networkOpen = false" @direct="onNetworkDirect" />
     <UrlModal :open="urlModalOpen" @close="urlModalOpen = false" @submit="onUrlSubmit" />
     <SettingsModal :open="settingsOpen" @close="settingsOpen = false" />
     <Toast :message="toastMsg" :is-err="toastIsErr" :visible="toastVisible" />
